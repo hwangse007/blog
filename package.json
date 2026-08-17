@@ -1,0 +1,6 @@
+{
+  "name": "naver-blog-writer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "사진과 메모로 블로그 글 초안을 만들어주는 소규모 가족/친구용 웹앱"
+}

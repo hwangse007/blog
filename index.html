@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>블로그 자동 글쓰기 도우미</title>
+<style>
+  :root{
+    --bg:#faf9f7; --card:#ffffff; --ink:#1f1d1a; --muted:#6b6560;
+    --accent:#2f6b4f; --accent-soft:#e7f2ec; --border:#e7e2db; --danger:#b3432f;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    background:var(--bg); color:var(--ink); line-height:1.6;
+  }
+  .wrap{max-width:880px;margin:0 auto;padding:32px 20px 80px;}
+  h1{font-size:22px;margin:0 0 4px;}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:28px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px;margin-bottom:18px;}
+  .card h2{font-size:15px;margin:0 0 14px;display:flex;align-items:center;gap:8px;}
+  .badge{background:var(--accent-soft);color:var(--accent);font-size:12px;padding:2px 8px;border-radius:20px;font-weight:600;}
+  label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--ink);}
+  .hint{font-size:12px;color:var(--muted);margin-top:4px;}
+  input[type=text],input[type=password],textarea,select{
+    width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;
+    font-size:14px;font-family:inherit;background:#fff;color:var(--ink);
+  }
+  textarea{resize:vertical;min-height:70px;}
+  .row{display:flex;gap:14px;flex-wrap:wrap;}
+  .row > div{flex:1;min-width:180px;}
+  .chip-group{display:flex;gap:8px;flex-wrap:wrap;}
+  .chip{
+    padding:8px 14px;border:1px solid var(--border);border-radius:20px;
+    cursor:pointer;font-size:13px;background:#fff;user-select:none;
+  }
+  .chip.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .photo-drop{
+    border:2px dashed var(--border);border-radius:10px;padding:20px;text-align:center;
+    color:var(--muted);cursor:pointer;font-size:13px;
+  }
+  .photo-drop.drag{border-color:var(--accent);background:var(--accent-soft);}
+  .photo-list{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;}
+  .photo-item{
+    width:110px;border:1px solid var(--border);border-radius:8px;overflow:hidden;
+    background:#fff;position:relative;
+  }
+  .photo-item img{width:100%;height:80px;object-fit:cover;display:block;}
+  .photo-item textarea{
+    width:100%;border:none;border-top:1px solid var(--border);font-size:11px;
+    padding:6px;min-height:44px;border-radius:0;
+  }
+  .photo-item .rm{
+    position:absolute;top:4px;right:4px;background:rgba(0,0,0,.55);color:#fff;
+    border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;line-height:1;
+  }
+  button.primary{
+    background:var(--accent);color:#fff;border:none;padding:12px 20px;border-radius:8px;
+    font-size:14px;font-weight:600;cursor:pointer;width:100%;
+  }
+  button.primary:disabled{opacity:.5;cursor:not-allowed;}
+  button.primary:hover:not(:disabled){filter:brightness(1.05);}
+  .status{font-size:13px;margin-top:10px;color:var(--muted);}
+  .status.error{color:var(--danger);}
+  .result{white-space:pre-wrap;font-size:14px;background:#fbfaf8;border:1px solid var(--border);
+    border-radius:10px;padding:16px;margin-top:10px;min-height:120px;}
+  .result-actions{display:flex;gap:8px;margin-top:10px;}
+  .btn-sm{
+    padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:#fff;
+    cursor:pointer;font-size:13px;
+  }
+  .btn-sm:hover{background:var(--accent-soft);border-color:var(--accent);}
+  details summary{cursor:pointer;font-size:13px;color:var(--muted);margin-bottom:8px;}
+  .key-row{display:flex;gap:8px;align-items:center;}
+  .key-row input{flex:1;}
+  .footer-note{font-size:12px;color:var(--muted);margin-top:24px;line-height:1.7;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>✍️ 블로그 자동 글쓰기 도우미</h1>
+  <div class="sub">사진 + 메모만 넣으면 제목·본문·해시태그 초안을 만들어드려요. 완성된 글은 복사해서 블로그에 붙여넣기만 하면 됩니다.</div>
+
+  <div class="card">
+    <h2>1. 어떤 글인가요? <span class="badge">카테고리</span></h2>
+    <div class="chip-group" id="categoryChips">
+      <div class="chip active" data-v="여행">✈️ 여행</div>
+      <div class="chip" data-v="맛집">🍽️ 맛집</div>
+      <div class="chip" data-v="제품후기">📦 제품후기</div>
+      <div class="chip" data-v="일상">📝 일상</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>2. 문체 설정 <span class="badge">톤</span></h2>
+    <div class="row">
+      <div>
+        <label>말투</label>
+        <select id="toneSelect">
+          <option value="친근한 반말체">친근한 반말체 (예: ~했다, ~였음)</option>
+          <option value="다정한 존댓말체" selected>다정한 존댓말체 (예: ~했어요)</option>
+          <option value="정보 전달형 존댓말">정보 전달형 존댓말 (~습니다체)</option>
+        </select>
+      </div>
+      <div>
+        <label>글 길이</label>
+        <select id="lengthSelect">
+          <option value="짧게 (500자 내외)">짧게 (500자 내외)</option>
+          <option value="보통 (900~1200자)" selected>보통 (900~1200자)</option>
+          <option value="길게 (1500자 이상, 상세 후기형)">길게 (1500자 이상)</option>
+        </select>
+      </div>
+    </div>
+    <details style="margin-top:14px;">
+      <summary>내 말투 예시 붙여넣기 (선택, 정확도가 훨씬 올라가요)</summary>
+      <textarea id="styleSample" placeholder="예전에 쓴 블로그 글 1~2개를 붙여넣으면 그 말투를 최대한 따라해서 씁니다.">문체 특징:
+- 존댓말체지만 딱딱하지 않고 편안한 톤 (~분위기에요, ~좋아요, ~여유로웠어요)
+- 문장을 짧게 끊어서 쓰고, 한 문단은 2~4줄 정도로 짧게
+- 괄호로 혼잣말하듯 덧붙이는 문장을 종종 씀 (예: (특히 외투 두꺼운 겨울은 그럴거같아요..!), (피크시간 피해 가는게 제일!))
+- 가끔 ㅎㅎ 같은 표현으로 톤을 부드럽게 풀어줌
+- 정보를 방문 전 상황 → 도착 후 웨이팅/분위기 → 주문 방법 → 메뉴/가격 → 특징 순서로 자연스럽게 배치
+- 가격이나 메뉴처럼 딱 떨어지는 정보는 따로 문단을 나눠서 깔끔하게 정리
+- 과장하지 않고 담백하게, 직접 겪은 것처럼 구체적으로 씀</textarea>
+    </details>
+  </div>
+
+  <div class="card">
+    <h2>3. 사진 & 메모</h2>
+    <div class="photo-drop" id="dropZone">사진을 여기로 끌어다 놓거나 클릭해서 선택하세요 (여러 장 가능)</div>
+    <input type="file" id="fileInput" accept="image/*" multiple style="display:none;">
+    <div class="photo-list" id="photoList"></div>
+    <div style="margin-top:14px;">
+      <label>전체 메모 (가게 이름, 장소, 가격, 느낀 점 등 자유롭게)</label>
+      <textarea id="generalMemo" placeholder="예: 강릉 안목해변 커피거리, oo카페, 아메리카노 5000원, 뷰가 진짜 좋았음. 웨이팅 15분."></textarea>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>4. 비밀번호 <span class="badge">필수</span></h2>
+    <div class="key-row">
+      <input type="password" id="accessPassword" placeholder="관리자에게 받은 비밀번호를 입력하세요">
+      <button class="btn-sm" id="togglePw">보기</button>
+    </div>
+    <div class="hint">API 키 같은 건 몰라도 돼요. 관리자(운영자)가 알려준 비밀번호만 입력하면 됩니다.</div>
+  </div>
+
+  <button class="primary" id="generateBtn">글 초안 만들기</button>
+  <div class="status" id="statusMsg"></div>
+
+  <div class="card" id="resultCard" style="display:none;">
+    <h2>5. 완성된 초안</h2>
+    <div class="result" id="resultBox"></div>
+    <div class="result-actions">
+      <button class="btn-sm" id="copyBtn">전체 복사</button>
+      <button class="btn-sm" id="regenBtn">다시 쓰기</button>
+    </div>
+  </div>
+
+  <div class="footer-note">
+    이 도구는 초안만 만들어줍니다. 사진과 완성된 글은 네이버 블로그 글쓰기 화면에 직접 붙여넣어 주세요 (자동 업로드는 네이버 정책상 지원하지 않습니다).
+  </div>
+</div>
+
+<script>
+let photos = []; // {file, dataUrl, memo}
+
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const photoList = document.getElementById('photoList');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag');
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+function handleFiles(fileListObj) {
+  const files = Array.from(fileListObj);
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      photos.push({ file, dataUrl: e.target.result, memo: '' });
+      renderPhotos();
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderPhotos() {
+  photoList.innerHTML = '';
+  photos.forEach((p, i) => {
+    const div = document.createElement('div');
+    div.className = 'photo-item';
+    div.innerHTML = `
+      <button class="rm" data-i="${i}">×</button>
+      <img src="${p.dataUrl}">
+      <textarea placeholder="이 사진 메모 (선택)" data-i="${i}">${p.memo}</textarea>
+    `;
+    photoList.appendChild(div);
+  });
+  photoList.querySelectorAll('.rm').forEach(btn => {
+    btn.addEventListener('click', () => {
+      photos.splice(parseInt(btn.dataset.i), 1);
+      renderPhotos();
+    });
+  });
+  photoList.querySelectorAll('textarea').forEach(ta => {
+    ta.addEventListener('input', () => {
+      photos[parseInt(ta.dataset.i)].memo = ta.value;
+    });
+  });
+}
+
+// category chips
+let category = '여행';
+document.getElementById('categoryChips').addEventListener('click', e => {
+  if (!e.target.classList.contains('chip')) return;
+  document.querySelectorAll('#categoryChips .chip').forEach(c => c.classList.remove('active'));
+  e.target.classList.add('active');
+  category = e.target.dataset.v;
+});
+
+document.getElementById('togglePw').addEventListener('click', () => {
+  const el = document.getElementById('accessPassword');
+  el.type = el.type === 'password' ? 'text' : 'password';
+});
+
+async function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+document.getElementById('generateBtn').addEventListener('click', generate);
+document.getElementById('regenBtn').addEventListener('click', generate);
+
+async function generate() {
+  const statusMsg = document.getElementById('statusMsg');
+  const password = document.getElementById('accessPassword').value.trim();
+  const tone = document.getElementById('toneSelect').value;
+  const length = document.getElementById('lengthSelect').value;
+  const styleSample = document.getElementById('styleSample').value.trim();
+  const generalMemo = document.getElementById('generalMemo').value.trim();
+
+  if (!password) { statusMsg.textContent = '비밀번호를 먼저 입력해주세요.'; statusMsg.className='status error'; return; }
+  if (photos.length === 0 && !generalMemo) { statusMsg.textContent = '사진이나 메모를 최소 하나는 넣어주세요.'; statusMsg.className='status error'; return; }
+
+  const btn = document.getElementById('generateBtn');
+  btn.disabled = true;
+  statusMsg.className = 'status';
+  statusMsg.textContent = '초안을 작성하는 중... (사진이 많으면 시간이 좀 걸려요)';
+
+  try {
+    const content = [];
+    let promptText = `당신은 한국 네이버 블로그에 올릴 글을 써주는 전문 블로거입니다.\n\n`;
+    promptText += `카테고리: ${category}\n말투: ${tone}\n분량: ${length}\n\n`;
+    if (styleSample) {
+      promptText += `아래는 이 사람이 예전에 쓴 글 예시입니다. 문체, 어투, 문단 나누는 습관을 최대한 비슷하게 따라해주세요.\n---\n${styleSample}\n---\n\n`;
+    }
+    if (generalMemo) {
+      promptText += `전체 메모: ${generalMemo}\n\n`;
+    }
+    if (photos.length > 0) {
+      promptText += `아래 사진들을 순서대로 보면서, 각 사진에 딸린 메모를 참고해 자연스러운 흐름으로 글을 구성해주세요. 사진 순서가 곧 글의 흐름입니다. 사진 삽입 위치는 "[사진1]" "[사진2]" 같은 식으로 표시해주세요.\n\n`;
+    }
+    promptText += `본문 형식은 네이버 블로그 감성 후기 스타일로 써주세요: 한 문단을 2~4줄 정도로 짧게 끊고, 문단 사이는 한 줄 띄어서 리듬감 있게 구성해주세요. 가격/메뉴처럼 정보성 내용은 별도 문단으로 깔끔하게 정리해주세요.\n\n`;
+    promptText += `결과는 아래 형식으로 출력해주세요:\n\n제목: (한 줄, 클릭하고 싶은 제목)\n\n본문: (짧은 문단으로 나눠서, 필요하면 [사진n] 위치 표시 포함)\n\n해시태그: (10개 내외, #으로 시작)`;
+
+    content.push({ type: 'text', text: promptText });
+
+    for (let i = 0; i < photos.length; i++) {
+      const base64 = await fileToBase64(photos[i].file);
+      const mediaType = photos[i].file.type || 'image/jpeg';
+      content.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } });
+      if (photos[i].memo) {
+        content.push({ type: 'text', text: `↑ 사진${i+1} 메모: ${photos[i].memo}` });
+      } else {
+        content.push({ type: 'text', text: `↑ 사진${i+1}` });
+      }
+    }
+
+    const resp = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        password,
+        payload: {
+          model: 'claude-sonnet-4-5-20250929',
+          max_tokens: 3000,
+          messages: [{ role: 'user', content }]
+        }
+      })
+    });
+
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      throw new Error(data.error && (data.error.message || data.error) || `오류 (${resp.status})`);
+    }
+
+    const text = data.content.map(b => b.text || '').join('\n');
+
+    document.getElementById('resultCard').style.display = 'block';
+    document.getElementById('resultBox').textContent = text;
+    statusMsg.textContent = '완성! 아래 내용을 확인하고 복사해서 블로그에 붙여넣어 주세요.';
+  } catch (err) {
+    statusMsg.className = 'status error';
+    statusMsg.textContent = '오류: ' + err.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('copyBtn').addEventListener('click', () => {
+  const text = document.getElementById('resultBox').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    document.getElementById('statusMsg').textContent = '복사했어요! 블로그 글쓰기 화면에 붙여넣으세요.';
+  });
+});
+</script>
+</body>
+</html>
