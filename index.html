@@ -136,7 +136,13 @@
   </div>
 
   <div class="card">
-    <h2>4. 비밀번호 <span class="badge">필수</span></h2>
+    <h2>4. 키워드 <span class="badge">선택</span></h2>
+    <input type="text" id="keywordInput" placeholder="예: 강릉맛집, 노트북추천 (쉼표로 여러 개 가능)">
+    <div class="hint">비워두면 AI가 사진/메모를 보고 알아서 제목을 정해요. 입력하면 제목과 본문 초반에 자연스럽게 녹여서 넣어줘요 (검색 노출용 키워드로 활용하기 좋아요).</div>
+  </div>
+
+  <div class="card">
+    <h2>5. 비밀번호 <span class="badge">필수</span></h2>
     <div class="key-row">
       <input type="password" id="accessPassword" placeholder="관리자에게 받은 비밀번호를 입력하세요">
       <button class="btn-sm" id="togglePw">보기</button>
@@ -148,7 +154,7 @@
   <div class="status" id="statusMsg"></div>
 
   <div class="card" id="resultCard" style="display:none;">
-    <h2>5. 완성된 초안</h2>
+    <h2>6. 완성된 초안</h2>
     <div class="result" id="resultBox"></div>
     <div class="result-actions">
       <button class="btn-sm" id="copyBtn">전체 복사</button>
@@ -273,6 +279,7 @@ async function generate() {
   const length = document.getElementById('lengthSelect').value;
   const styleSample = document.getElementById('styleSample').value.trim();
   const generalMemo = document.getElementById('generalMemo').value.trim();
+  const keyword = document.getElementById('keywordInput').value.trim();
 
   if (!password) { statusMsg.textContent = '비밀번호를 먼저 입력해주세요.'; statusMsg.className='status error'; return; }
   if (photos.length === 0 && !generalMemo) { statusMsg.textContent = '사진이나 메모를 최소 하나는 넣어주세요.'; statusMsg.className='status error'; return; }
@@ -291,6 +298,11 @@ async function generate() {
     }
     if (generalMemo) {
       promptText += `전체 메모: ${generalMemo}\n\n`;
+    }
+    if (keyword) {
+      promptText += `중요: 아래 키워드를 반드시 활용해서 써주세요.\n키워드: ${keyword}\n- 제목에 키워드가 자연스럽게 포함되도록 해주세요 (검색에 잘 걸리도록, 억지스럽지 않게).\n- 본문 첫 문단 안에도 키워드가 최소 1번은 자연스럽게 등장하게 해주세요.\n\n`;
+    } else {
+      promptText += `별도로 지정된 키워드는 없으니, 사진과 메모 내용을 보고 검색에 잘 걸릴만한 제목을 알아서 정해주세요.\n\n`;
     }
     if (photos.length > 0) {
       promptText += `아래 사진들을 순서대로 보면서, 각 사진에 딸린 메모를 참고해 자연스러운 흐름으로 글을 구성해주세요. 사진 순서가 곧 글의 흐름입니다. 사진 삽입 위치는 "[사진1]" "[사진2]" 같은 식으로 표시해주세요.\n\n`;
