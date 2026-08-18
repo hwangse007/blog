@@ -43,7 +43,14 @@
   .photo-list{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;}
   .photo-item{
     width:110px;border:1px solid var(--border);border-radius:8px;overflow:hidden;
-    background:#fff;position:relative;
+    background:#fff;position:relative;cursor:grab;
+  }
+  .photo-item.dragging{opacity:.4;}
+  .photo-item.drag-over{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft);}
+  .photo-item .order-badge{
+    position:absolute;top:4px;left:4px;background:var(--accent);color:#fff;
+    font-size:11px;font-weight:700;width:20px;height:20px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;z-index:1;
   }
   .photo-item img{width:100%;height:80px;object-fit:cover;display:block;}
   .photo-item textarea{
@@ -64,6 +71,12 @@
   .status.error{color:var(--danger);}
   .result{white-space:pre-wrap;font-size:14px;background:#fbfaf8;border:1px solid var(--border);
     border-radius:10px;padding:16px;margin-top:10px;min-height:120px;}
+  .result-section{margin-top:14px;}
+  .result-section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+  .result-label{font-size:13px;font-weight:600;color:var(--ink);}
+  .char-count{font-size:12px;font-weight:400;color:var(--muted);margin-left:6px;}
+  .result-box-sm{white-space:pre-wrap;font-size:14px;background:#fbfaf8;border:1px solid var(--border);
+    border-radius:10px;padding:12px 14px;min-height:40px;}
   .result-actions{display:flex;gap:8px;margin-top:10px;}
   .btn-sm{
     padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:#fff;
@@ -142,6 +155,7 @@
     <div class="photo-drop" id="dropZone">사진을 여기로 끌어다 놓거나 클릭해서 선택하세요 (여러 장 가능)</div>
     <input type="file" id="fileInput" accept="image/*" multiple style="display:none;">
     <div class="photo-list" id="photoList"></div>
+    <div class="hint" style="margin-top:8px;">사진 순서 = 글 흐름 순서예요. 사진을 마우스로 눌러서 드래그하면 순서를 바꿀 수 있어요.</div>
     <div style="margin-top:14px;">
       <label>전체 메모 (가게 이름, 장소, 가격, 느낀 점 등 자유롭게)</label>
       <textarea id="generalMemo" placeholder="예: 강릉 안목해변 커피거리, oo카페, 아메리카노 5000원, 뷰가 진짜 좋았음. 웨이팅 15분."></textarea>
@@ -168,7 +182,31 @@
 
   <div class="card" id="resultCard" style="display:none;">
     <h2>6. 완성된 초안</h2>
-    <div class="result" id="resultBox"></div>
+
+    <div class="result-section">
+      <div class="result-section-head">
+        <span class="result-label">제목</span>
+        <button class="btn-sm" id="copyTitleBtn">복사</button>
+      </div>
+      <div class="result-box-sm" id="resultTitle"></div>
+    </div>
+
+    <div class="result-section">
+      <div class="result-section-head">
+        <span class="result-label">본문 <span class="char-count" id="bodyCharCount">0자</span></span>
+        <button class="btn-sm" id="copyBodyBtn">복사</button>
+      </div>
+      <div class="result-box-sm" id="resultBody"></div>
+    </div>
+
+    <div class="result-section">
+      <div class="result-section-head">
+        <span class="result-label">해시태그</span>
+        <button class="btn-sm" id="copyHashtagBtn">복사</button>
+      </div>
+      <div class="result-box-sm" id="resultHashtag"></div>
+    </div>
+
     <div class="result-actions">
       <button class="btn-sm" id="copyBtn">전체 복사</button>
       <button class="btn-sm" id="regenBtn">다시 쓰기</button>
@@ -214,16 +252,48 @@ function handleFiles(fileListObj) {
   });
 }
 
+let dragFromIndex = null;
+
 function renderPhotos() {
   photoList.innerHTML = '';
   photos.forEach((p, i) => {
     const div = document.createElement('div');
     div.className = 'photo-item';
+    div.draggable = true;
+    div.dataset.i = i;
     div.innerHTML = `
+      <div class="order-badge">${i + 1}</div>
       <button class="rm" data-i="${i}">×</button>
       <img src="${p.dataUrl}">
       <textarea placeholder="이 사진 메모 (선택)" data-i="${i}">${p.memo}</textarea>
     `;
+
+    div.addEventListener('dragstart', (e) => {
+      dragFromIndex = i;
+      div.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    div.addEventListener('dragend', () => {
+      div.classList.remove('dragging');
+      dragFromIndex = null;
+    });
+    div.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      div.classList.add('drag-over');
+    });
+    div.addEventListener('dragleave', () => {
+      div.classList.remove('drag-over');
+    });
+    div.addEventListener('drop', (e) => {
+      e.preventDefault();
+      div.classList.remove('drag-over');
+      const toIndex = i;
+      if (dragFromIndex === null || dragFromIndex === toIndex) return;
+      const [moved] = photos.splice(dragFromIndex, 1);
+      photos.splice(toIndex, 0, moved);
+      renderPhotos();
+    });
+
     photoList.appendChild(div);
   });
   photoList.querySelectorAll('.rm').forEach(btn => {
@@ -372,8 +442,7 @@ async function generate() {
 
     const text = data.content.map(b => b.text || '').join('\n');
 
-    document.getElementById('resultCard').style.display = 'block';
-    document.getElementById('resultBox').textContent = text;
+    showResult(text);
     statusMsg.textContent = '완성! 아래 내용을 확인하고 복사해서 블로그에 붙여넣어 주세요.';
 
     saveToHistory({ category, keyword, tone, text });
@@ -385,11 +454,52 @@ async function generate() {
   }
 }
 
-document.getElementById('copyBtn').addEventListener('click', () => {
-  const text = document.getElementById('resultBox').textContent;
+// ── 결과(제목/본문/해시태그) 파싱 및 표시 ─────────────────────
+let lastResultText = '';
+
+function parseDraft(text) {
+  const titleMatch = text.match(/제목\s*[:：]\s*([^\n]*)/);
+  const bodyMatch = text.match(/본문\s*[:：]\s*([\s\S]*?)(?:\n\s*해시태그\s*[:：]|$)/);
+  const hashtagMatch = text.match(/해시태그\s*[:：]\s*([\s\S]*)$/);
+
+  const title = titleMatch ? titleMatch[1].trim() : '';
+  const body = bodyMatch ? bodyMatch[1].trim() : (!titleMatch && !hashtagMatch ? text.trim() : '');
+  const hashtag = hashtagMatch ? hashtagMatch[1].trim() : '';
+
+  return { title, body, hashtag };
+}
+
+function showResult(text) {
+  lastResultText = text;
+  const { title, body, hashtag } = parseDraft(text);
+
+  document.getElementById('resultTitle').textContent = title || '(제목을 찾지 못했어요, 아래 전체 복사를 이용해주세요)';
+  document.getElementById('resultBody').textContent = body || text;
+  document.getElementById('resultHashtag').textContent = hashtag || '';
+  const bodyLen = (body || text).replace(/\s/g, '').length;
+  document.getElementById('bodyCharCount').textContent = `공백 제외 약 ${bodyLen}자`;
+
+  document.getElementById('resultCard').style.display = 'block';
+}
+
+function copyText(text, label) {
   navigator.clipboard.writeText(text).then(() => {
-    document.getElementById('statusMsg').textContent = '복사했어요! 블로그 글쓰기 화면에 붙여넣으세요.';
+    document.getElementById('statusMsg').className = 'status';
+    document.getElementById('statusMsg').textContent = `${label} 복사했어요! 블로그 글쓰기 화면에 붙여넣으세요.`;
   });
+}
+
+document.getElementById('copyBtn').addEventListener('click', () => {
+  copyText(lastResultText, '전체를');
+});
+document.getElementById('copyTitleBtn').addEventListener('click', () => {
+  copyText(document.getElementById('resultTitle').textContent, '제목을');
+});
+document.getElementById('copyBodyBtn').addEventListener('click', () => {
+  copyText(document.getElementById('resultBody').textContent, '본문을');
+});
+document.getElementById('copyHashtagBtn').addEventListener('click', () => {
+  copyText(document.getElementById('resultHashtag').textContent, '해시태그를');
 });
 
 // ── 히스토리 (이 브라우저에만 저장, AI 재호출 없음) ──────────────
@@ -452,8 +562,7 @@ function renderHistory() {
     `;
     div.addEventListener('click', (e) => {
       if (e.target.classList.contains('h-del')) return;
-      document.getElementById('resultCard').style.display = 'block';
-      document.getElementById('resultBox').textContent = item.text;
+      showResult(item.text);
       document.getElementById('resultCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
       document.getElementById('statusMsg').textContent = `${item.dateLabel}에 만든 초안을 불러왔어요.`;
     });
