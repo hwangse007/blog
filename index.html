@@ -74,6 +74,19 @@
   .key-row{display:flex;gap:8px;align-items:center;}
   .key-row input{flex:1;}
   .footer-note{font-size:12px;color:var(--muted);margin-top:24px;line-height:1.7;}
+  .history-item{
+    border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;
+    cursor:pointer;background:#fff;
+  }
+  .history-item:hover{background:var(--accent-soft);border-color:var(--accent);}
+  .history-item .h-top{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+  .history-item .h-title{font-size:13px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
+  .history-item .h-meta{font-size:11px;color:var(--muted);margin-top:4px;}
+  .history-item .h-del{
+    background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px;line-height:1;
+  }
+  .history-item .h-del:hover{color:var(--danger);}
+  .history-empty{font-size:13px;color:var(--muted);padding:8px 0;}
 </style>
 </head>
 <body>
@@ -160,6 +173,12 @@
       <button class="btn-sm" id="copyBtn">전체 복사</button>
       <button class="btn-sm" id="regenBtn">다시 쓰기</button>
     </div>
+  </div>
+
+  <div class="card">
+    <h2>📋 히스토리 <span class="badge" id="historyCount">0개</span></h2>
+    <div class="hint" style="margin-bottom:12px;">이 브라우저에만 저장돼요 (다른 기기/브라우저에서는 안 보여요). AI를 다시 호출하지 않으니 비용은 안 들어요.</div>
+    <div id="historyList"></div>
   </div>
 
   <div class="footer-note">
@@ -356,6 +375,8 @@ async function generate() {
     document.getElementById('resultCard').style.display = 'block';
     document.getElementById('resultBox').textContent = text;
     statusMsg.textContent = '완성! 아래 내용을 확인하고 복사해서 블로그에 붙여넣어 주세요.';
+
+    saveToHistory({ category, keyword, tone, text });
   } catch (err) {
     statusMsg.className = 'status error';
     statusMsg.textContent = '오류: ' + err.message;
@@ -370,6 +391,84 @@ document.getElementById('copyBtn').addEventListener('click', () => {
     document.getElementById('statusMsg').textContent = '복사했어요! 블로그 글쓰기 화면에 붙여넣으세요.';
   });
 });
+
+// ── 히스토리 (이 브라우저에만 저장, AI 재호출 없음) ──────────────
+const HISTORY_KEY = 'blogWriterHistory';
+const HISTORY_MAX = 30;
+
+function loadHistory() {
+  try {
+    return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function saveToHistory({ category, keyword, tone, text }) {
+  const list = loadHistory();
+  const firstLine = (text.split('\n').find(l => l.trim()) || '').replace(/^제목\s*:\s*/, '').slice(0, 60);
+  const now = new Date();
+  const dateLabel = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  list.unshift({
+    id: now.getTime(),
+    dateLabel,
+    category,
+    keyword,
+    tone,
+    title: firstLine || '(제목 없음)',
+    text
+  });
+  if (list.length > HISTORY_MAX) list.length = HISTORY_MAX;
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+  renderHistory();
+}
+
+function deleteHistoryItem(id) {
+  const list = loadHistory().filter(item => item.id !== id);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+  renderHistory();
+}
+
+function renderHistory() {
+  const list = loadHistory();
+  const container = document.getElementById('historyList');
+  document.getElementById('historyCount').textContent = `${list.length}개`;
+
+  if (list.length === 0) {
+    container.innerHTML = '<div class="history-empty">아직 저장된 초안이 없어요. 글을 만들면 여기 자동으로 쌓여요.</div>';
+    return;
+  }
+
+  container.innerHTML = '';
+  list.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'history-item';
+    div.innerHTML = `
+      <div class="h-top">
+        <div class="h-title">${item.title.replace(/</g, '&lt;')}</div>
+        <button class="h-del" data-id="${item.id}" title="삭제">×</button>
+      </div>
+      <div class="h-meta">${item.dateLabel} · ${item.category}${item.keyword ? ' · ' + item.keyword : ''}</div>
+    `;
+    div.addEventListener('click', (e) => {
+      if (e.target.classList.contains('h-del')) return;
+      document.getElementById('resultCard').style.display = 'block';
+      document.getElementById('resultBox').textContent = item.text;
+      document.getElementById('resultCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document.getElementById('statusMsg').textContent = `${item.dateLabel}에 만든 초안을 불러왔어요.`;
+    });
+    container.appendChild(div);
+  });
+
+  container.querySelectorAll('.h-del').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteHistoryItem(Number(btn.dataset.id));
+    });
+  });
+}
+
+renderHistory();
 </script>
 </body>
 </html>
